@@ -1,0 +1,2104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar DGR Analytics</title>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Chart.js annotation-free, standard Chart.js only -->
+
+  <style>
+    :root {
+      --teal: #27a5ad;
+      --teal-dark: #187e85;
+      --teal-soft: #eaf8f8;
+      --navy: #173b4a;
+      --text: #23343d;
+      --muted: #74838b;
+      --border: #e4ebee;
+      --bg: #f5f8f9;
+      --white: #ffffff;
+      --success: #3f9b75;
+      --warning: #d89b42;
+      --danger: #c75b61;
+      --shadow: 0 8px 24px rgba(30, 60, 70, 0.07);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    button, input { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 248px;
+      background: #fff;
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 4px 10px 28px;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      background: var(--teal);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 17px;
+      box-shadow: 0 7px 18px rgba(39,165,173,.25);
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--navy);
+      line-height: 1.15;
+    }
+
+    .brand-sub {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    .nav-label {
+      padding: 0 12px 9px;
+      color: #9aa7ac;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .nav button {
+      border: 0;
+      background: transparent;
+      color: #687981;
+      text-align: left;
+      padding: 11px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 650;
+      font-size: 13px;
+      transition: .18s ease;
+    }
+
+    .nav button:hover {
+      background: #f1f8f8;
+      color: var(--teal-dark);
+    }
+
+    .nav button.active {
+      background: var(--teal-soft);
+      color: var(--teal-dark);
+    }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      border-top: 1px solid var(--border);
+      padding: 16px 10px 0;
+    }
+
+    .workbook-mini {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .workbook-mini strong {
+      color: var(--navy);
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    /* Main */
+    .main {
+      margin-left: 248px;
+      width: calc(100% - 248px);
+      min-width: 0;
+    }
+
+    .topbar {
+      height: 74px;
+      background: rgba(255,255,255,.94);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px;
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      backdrop-filter: blur(10px);
+    }
+
+    .page-heading h1 {
+      margin: 0;
+      font-size: 21px;
+      color: var(--navy);
+    }
+
+    .page-heading p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .upload-btn {
+      background: var(--teal);
+      color: white;
+      border: 0;
+      padding: 10px 15px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-weight: 750;
+      font-size: 12px;
+      box-shadow: 0 6px 16px rgba(39,165,173,.2);
+    }
+
+    .upload-btn:hover { background: var(--teal-dark); }
+
+    .file-name {
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .content {
+      padding: 26px 30px 40px;
+      max-width: 1700px;
+      margin: auto;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    /* Workbook badges */
+    .sheet-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .sheet-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .sheet-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #b9c3c7;
+    }
+
+    .sheet-badge.ok .dot { background: var(--success); }
+    .sheet-badge.missing .dot { background: var(--danger); }
+    .sheet-badge.ok { color: #55736a; }
+
+    /* KPI */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-card, .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi-card {
+      padding: 17px 18px;
+      min-height: 115px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::after {
+      content: "";
+      position: absolute;
+      right: -25px;
+      bottom: -28px;
+      width: 85px;
+      height: 85px;
+      border-radius: 50%;
+      background: var(--teal-soft);
+    }
+
+    .kpi-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .kpi-value {
+      margin-top: 12px;
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--navy);
+      position: relative;
+      z-index: 1;
+    }
+
+    .kpi-meta {
+      margin-top: 4px;
+      color: #98a4a9;
+      font-size: 10px;
+    }
+
+    /* Cards */
+    .section-title {
+      margin: 26px 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .section-title h2 {
+      font-size: 15px;
+      margin: 0;
+      color: var(--navy);
+    }
+
+    .section-title span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 18px;
+    }
+
+    .grid-1 {
+      display: grid;
+      grid-template-columns: minmax(0,1fr);
+      gap: 18px;
+    }
+
+    .card {
+      padding: 17px;
+      min-width: 0;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 13px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .card-subtitle {
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: 4px;
+    }
+
+    .chart-scroll {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-radius: 9px;
+      scrollbar-width: thin;
+    }
+
+    .chart-inner {
+      height: 315px;
+      min-width: 100%;
+      position: relative;
+    }
+
+    .chart-inner.tall {
+      height: 390px;
+    }
+
+    .chart-inner.short {
+      height: 270px;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .no-data {
+      height: 100%;
+      min-height: 230px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #dbe5e8;
+      border-radius: 9px;
+      color: #9aa7ac;
+      background: #fbfcfc;
+      font-size: 12px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .error-note {
+      color: var(--danger);
+      font-size: 11px;
+      margin-top: 8px;
+    }
+
+    /* Energy summary */
+    .energy-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px;
+      background: #fbfdfd;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      margin-bottom: 7px;
+    }
+
+    .summary-card strong {
+      color: var(--navy);
+      font-size: 18px;
+    }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 470px;
+      background: white;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #edf1f2;
+      font-size: 11px;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f8fafb;
+      font-weight: 800;
+    }
+
+    td { color: #52636b; }
+
+    tbody tr:last-child td { border-bottom: 0; }
+
+    /* Empty state */
+    .welcome {
+      border: 1px solid #dceff0;
+      background: linear-gradient(120deg, #eefafa, #ffffff);
+      border-radius: 14px;
+      padding: 17px 18px;
+      margin-bottom: 20px;
+    }
+
+    .welcome strong {
+      color: var(--navy);
+      font-size: 13px;
+    }
+
+    .welcome p {
+      color: var(--muted);
+      margin: 6px 0 0;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .latest-date {
+      color: var(--teal-dark);
+      font-weight: 750;
+    }
+
+    /* Responsive */
+    @media (max-width: 1100px) {
+      .sidebar { width: 210px; }
+      .main { margin-left: 210px; width: calc(100% - 210px); }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+      }
+      .app { display: block; }
+      .main { margin-left: 0; width: 100%; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 18px 16px 30px; }
+      .sidebar-bottom { display: none; }
+      .kpi-grid, .energy-summary { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">☀</div>
+      <div>
+        <div class="brand-title">Solar DGR</div>
+        <div class="brand-sub">Analytics Platform</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Analysis</div>
+    <nav class="nav">
+      <button class="active" data-page="dashboard">Dashboard</button>
+      <button data-page="pa">PA Analysis</button>
+      <button data-page="performance">Performance</button>
+      <button data-page="curtailment">Curtailment</button>
+      <button data-page="energy">Energy</button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="workbook-mini">
+        <strong id="sidebarWorkbook">No workbook loaded</strong>
+        Upload a DGR Excel workbook to populate the analytics.
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="page-heading">
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageSubtitle">Daily plant performance overview</p>
+      </div>
+      <div class="top-actions">
+        <span class="file-name" id="fileName">No workbook selected</span>
+        <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm" hidden />
+        <button class="upload-btn" id="uploadBtn">Upload DGR</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <div class="sheet-status" id="sheetStatus">
+        <div class="sheet-badge"><span class="dot"></span>Dashboard</div>
+        <div class="sheet-badge"><span class="dot"></span>Annual_KPI</div>
+        <div class="sheet-badge"><span class="dot"></span>Daily_KPI</div>
+        <div class="sheet-badge"><span class="dot"></span>PA</div>
+        <div class="sheet-badge"><span class="dot"></span>Curtailment records</div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <section class="page active" id="page-dashboard">
+        <div class="welcome">
+          <strong>Solar DGR Analytics</strong>
+          <p>
+            Upload the Excel DGR workbook to dynamically analyse Daily_KPI, PA,
+            Curtailment records and Annual_KPI using the specified source columns.
+          </p>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Plant Availability</div>
+            <div class="kpi-value" id="dashPA">—</div>
+            <div class="kpi-meta" id="dashPADate">Latest Daily_KPI record</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Performance Ratio</div>
+            <div class="kpi-value" id="dashPR">—</div>
+            <div class="kpi-meta" id="dashPRDate">Latest Daily_KPI record</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">System Loss</div>
+            <div class="kpi-value" id="dashLoss">—</div>
+            <div class="kpi-meta" id="dashLossDate">Daily_KPI %</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Operating Hours</div>
+            <div class="kpi-value" id="dashHours">—</div>
+            <div class="kpi-meta" id="dashHoursDate">Latest Daily_KPI record</div>
+          </div>
+        </div>
+
+        <div class="section-title">
+          <h2>Daily Dashboard Trends</h2>
+          <span id="dashRange">Waiting for workbook</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Daily Performance Ratio</div>
+                <div class="card-subtitle">Daily_KPI → V, date from B</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="dashPRChartWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Daily System Loss</div>
+                <div class="card-subtitle">Daily_KPI → AD, percentage</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="dashLossChartWrap"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PA -->
+      <section class="page" id="page-pa">
+        <div class="section-title">
+          <h2>Plant Availability & Unavailability</h2>
+          <span>Daily_KPI + PA worksheet</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Plant Availability</div>
+                <div class="card-subtitle">Daily_KPI → B / S</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="paAvailabilityWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Plant Unavailability</div>
+                <div class="card-subtitle">PA → W / Z / AC · 00:00–23:59</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner tall" id="paGanttWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Breakdown Timeline</div>
+                <div class="card-subtitle">PA → B / AG · daily sum in minutes</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner tall" id="breakdownWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">System Loss</div>
+                <div class="card-subtitle">PA → B / AL · aggregated MWh</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner tall" id="paLossWrap"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PERFORMANCE -->
+      <section class="page" id="page-performance">
+        <div class="section-title">
+          <h2>Performance Analysis</h2>
+          <span>Daily + monthly performance views</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Daily Performance Ratio</div>
+                <div class="card-subtitle">Daily_KPI → B / V</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="performancePRWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Operating Hours</div>
+                <div class="card-subtitle">Daily_KPI → B / I</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="operatingWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Daily System Loss</div>
+                <div class="card-subtitle">Daily_KPI → B / AD</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="performanceLossWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Monthly Performance Ratio</div>
+                <div class="card-subtitle">Annual_KPI → I10:I21 · measured PR</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner tall" id="monthlyPRWrap"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CURTAILMENT -->
+      <section class="page" id="page-curtailment">
+        <div class="section-title">
+          <h2>Curtailment Analysis</h2>
+          <span>Curtailment records worksheet</span>
+        </div>
+
+        <div class="grid-1">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Daily Curtailment Loss</div>
+                <div class="card-subtitle">C = Date · R = Loss of Generation MWh</div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Loss of Generation (MWh)</th>
+                    <th>Number of Intervals</th>
+                  </tr>
+                </thead>
+                <tbody id="curtailmentTableBody">
+                  <tr><td colspan="3">No data found</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Curtailment Loss Trend</div>
+                <div class="card-subtitle">Daily aggregated R values</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner" id="curtailmentTrendWrap"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Curtailment Duration</div>
+                <div class="card-subtitle">C / H / I · 06:00–18:00 · 15-minute scale</div>
+              </div>
+            </div>
+            <div class="chart-scroll"><div class="chart-inner tall" id="curtailmentGanttWrap"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ENERGY -->
+      <section class="page" id="page-energy">
+        <div class="section-title">
+          <h2>Energy Analysis</h2>
+          <span>Annual_KPI → E10:F21</span>
+        </div>
+
+        <div class="energy-summary">
+          <div class="summary-card">
+            <span>Total Budgeted Energy</span>
+            <strong id="totalBudget">—</strong>
+          </div>
+          <div class="summary-card">
+            <span>Total Measured Energy</span>
+            <strong id="totalMeasured">—</strong>
+          </div>
+          <div class="summary-card">
+            <span>Variance · Measured − Budgeted</span>
+            <strong id="energyVariance">—</strong>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Budgeted vs Measured Energy</div>
+              <div class="card-subtitle">
+                Annual_KPI → E10:E21 Budgeted · F10:F21 Measured
+              </div>
+            </div>
+          </div>
+          <div class="chart-scroll">
+            <div class="chart-inner" id="energyWrap"></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ==========================================================
+   SOLAR DGR ANALYTICS
+   New single-file application.
+   All source mappings are deliberately explicit.
+   ========================================================== */
+
+const state = {
+  workbook: null,
+  sheets: {},
+  charts: {}
+};
+
+const REQUIRED_SHEETS = [
+  "Dashboard",
+  "Annual_KPI",
+  "Daily_KPI",
+  "PA",
+  "Curtailment records"
+];
+
+const MONTHS = [
+  "April", "May", "June", "July", "August", "September",
+  "October", "November", "December", "January", "February", "March"
+];
+
+const SHORT_MONTHS = [
+  "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+  "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"
+];
+
+const PAGE_META = {
+  dashboard: ["Dashboard", "Daily plant performance overview"],
+  pa: ["PA Analysis", "Availability, unavailability, breakdown and system loss"],
+  performance: ["Performance", "Daily and monthly performance analysis"],
+  curtailment: ["Curtailment", "Daily losses and curtailment intervals"],
+  energy: ["Energy", "Budgeted versus measured monthly energy"]
+};
+
+document.getElementById("uploadBtn").addEventListener("click", () => {
+  document.getElementById("excelFile").click();
+});
+
+document.getElementById("excelFile").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  document.getElementById("fileName").textContent = file.name;
+  document.getElementById("sidebarWorkbook").textContent = file.name;
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, {
+      type: "array",
+      cellDates: true,
+      cellFormula: true,
+      cellNF: true,
+      cellText: true
+    });
+
+    state.workbook = workbook;
+    state.sheets = resolveRequiredSheets(workbook);
+
+    renderSheetBadges();
+    renderAll();
+  } catch (error) {
+    console.error(error);
+    alert("The workbook could not be read. Please upload a valid Excel DGR workbook.");
+  }
+});
+
+/* -------------------- Navigation -------------------- */
+
+document.querySelectorAll(".nav button").forEach(button => {
+  button.addEventListener("click", () => {
+    const page = button.dataset.page;
+
+    document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
+    button.classList.add("active");
+
+    document.querySelectorAll(".page").forEach(section => section.classList.remove("active"));
+    document.getElementById("page-" + page).classList.add("active");
+
+    document.getElementById("pageTitle").textContent = PAGE_META[page][0];
+    document.getElementById("pageSubtitle").textContent = PAGE_META[page][1];
+  });
+});
+
+/* -------------------- Sheet resolution -------------------- */
+
+function normalizeSheetName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function resolveRequiredSheets(workbook) {
+  const result = {};
+
+  for (const logicalName of REQUIRED_SHEETS) {
+    const wanted = normalizeSheetName(logicalName);
+    const actual = workbook.SheetNames.find(name => normalizeSheetName(name) === wanted);
+    result[logicalName] = actual ? workbook.Sheets[actual] : null;
+  }
+
+  return result;
+}
+
+function renderSheetBadges() {
+  const container = document.getElementById("sheetStatus");
+  container.innerHTML = "";
+
+  REQUIRED_SHEETS.forEach(name => {
+    const badge = document.createElement("div");
+    const exists = !!state.sheets[name];
+
+    badge.className = "sheet-badge " + (exists ? "ok" : "missing");
+    badge.innerHTML =
+      '<span class="dot"></span>' +
+      escapeHtml(name) +
+      (exists ? "" : " · missing");
+
+    container.appendChild(badge);
+  });
+}
+
+/* -------------------- XLSX helpers -------------------- */
+
+function colToIndex(col) {
+  let n = 0;
+  for (const ch of col) n = n * 26 + ch.charCodeAt(0) - 64;
+  return n - 1;
+}
+
+function sheetMatrix(sheet) {
+  if (!sheet || !sheet["!ref"]) return [];
+  return XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: null,
+    raw: false
+  });
+}
+
+function rawCell(sheet, address) {
+  return sheet?.[address] ?? null;
+}
+
+function displayCell(sheet, address) {
+  const cell = rawCell(sheet, address);
+  if (!cell) return null;
+
+  if (cell.w !== undefined && cell.w !== null && String(cell.w).trim() !== "") {
+    return cell.w;
+  }
+
+  if (cell.v !== undefined && cell.v !== null) return cell.v;
+
+  return null;
+}
+
+function isBadValue(value) {
+  if (value === null || value === undefined) return true;
+  const text = String(value).trim().toUpperCase();
+  return !text || ["#REF!", "#VALUE!", "#DIV/0!", "#N/A", "#NAME?", "#NUM!", "#NULL!"].includes(text);
+}
+
+function numericValue(value) {
+  if (isBadValue(value)) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  const cleaned = String(value)
+    .replace(/,/g, "")
+    .replace(/%/g, "")
+    .trim();
+
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function percentageValue(value) {
+  const n = numericValue(value);
+  if (n === null) return null;
+
+  return Math.abs(n) <= 1.5 ? n * 100 : n;
+}
+
+function excelSerialToDate(serial) {
+  if (!Number.isFinite(serial)) return null;
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const d = new Date(epoch.getTime() + serial * 86400000);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+function parseDate(value) {
+  if (isBadValue(value)) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  if (typeof value === "number") {
+    return excelSerialToDate(value);
+  }
+
+  const text = String(value).trim();
+
+  // Avoid accidentally interpreting times as dates.
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) return null;
+
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) {
+    return new Date(direct.getFullYear(), direct.getMonth(), direct.getDate());
+  }
+
+  // dd-mm-yyyy / dd/mm/yyyy / dd.mm.yyyy
+  const m = text.match(/^(\\d{1,2})[\\/-\\.](\\d{1,2})[\\/-\\.](\\d{4})$/);
+  if (m) {
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
+
+function dateKey(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function formatDate(date) {
+  if (!(date instanceof Date)) return "—";
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function parseTimeMinutes(value) {
+  if (isBadValue(value)) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Excel time is a fraction of a day.
+    if (value >= 0 && value < 1) return Math.round(value * 1440);
+    // Some workbooks may expose seconds/minutes numerically.
+    if (value >= 1 && value < 1440) return Math.round(value);
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.getHours() * 60 + value.getMinutes() + value.getSeconds() / 60;
+  }
+
+  const text = String(value).trim();
+  const match = text.match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+
+  if (match) {
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    const s = Number(match[3] || 0);
+
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return h * 60 + m + s / 60;
+    }
+  }
+
+  const n = numericValue(value);
+  if (n !== null && n >= 0 && n < 1) return n * 1440;
+
+  return null;
+}
+
+function minutesToTime(minutes) {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+function nextDay(date) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+
+function ensureCanvas(wrapperId, canvasId, minWidthPx = 700) {
+  const wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return null;
+
+  wrapper.innerHTML = "";
+
+  const width = Math.max(
+    wrapper.parentElement?.clientWidth || 700,
+    minWidthPx
+  );
+
+  wrapper.style.width = width + "px";
+
+  const canvas = document.createElement("canvas");
+  canvas.id = canvasId;
+  canvas.width = width;
+  canvas.height = wrapper.clientHeight || 315;
+
+  wrapper.appendChild(canvas);
+
+  return canvas;
+}
+
+function showNoData(wrapperId, message = "No data found") {
+  const wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return;
+
+  wrapper.innerHTML = "";
+  wrapper.style.width = "100%";
+
+  const div = document.createElement("div");
+  div.className = "no-data";
+  div.textContent = message;
+  wrapper.appendChild(div);
+}
+
+function destroyChart(key) {
+  if (state.charts[key]) {
+    state.charts[key].destroy();
+    delete state.charts[key];
+  }
+}
+
+function safeChart(key, wrapperId, createFn) {
+  destroyChart(key);
+
+  try {
+    return createFn();
+  } catch (error) {
+    console.error("Chart error:", key, error);
+    showNoData(wrapperId, "Unable to render this chart.");
+    return null;
+  }
+}
+
+function chartWidth(pointCount, pixelsPerPoint = 76) {
+  return Math.max(760, pointCount * pixelsPerPoint);
+}
+
+function baseOptions() {
+  return {
+    responsive: false,
+    maintainAspectRatio: false,
+    animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: {
+        labels: {
+          font: { size: 10 },
+          usePointStyle: true
+        }
+      },
+      tooltip: {
+        titleFont: { size: 11 },
+        bodyFont: { size: 10 }
+      }
+    }
+  };
+}
+
+/* -------------------- Daily_KPI -------------------- */
+
+function readDailyKPI() {
+  const sheet = state.sheets["Daily_KPI"];
+  if (!sheet) return [];
+
+  const rows = sheetMatrix(sheet);
+  const data = [];
+
+  let previousValidDate = null;
+
+  for (let r = 0; r < rows.length; r++) {
+    const excelRow = r + 1;
+
+    let date = parseDate(displayCell(sheet, "B" + excelRow));
+
+    // Formula-driven date fallback:
+    // If the displayed/raw value cannot produce a valid date and the cell
+    // is formula-based, sequentially reconstruct from the previous date.
+    const dateCell = rawCell(sheet, "B" + excelRow);
+    if (!date && dateCell?.f && previousValidDate) {
+      date = nextDay(previousValidDate);
+    }
+
+    if (date) previousValidDate = date;
+
+    if (!date) continue;
+
+    const pa = percentageValue(displayCell(sheet, "S" + excelRow));
+    const pr = percentageValue(displayCell(sheet, "V" + excelRow));
+    const loss = percentageValue(displayCell(sheet, "AD" + excelRow));
+    const hours = numericValue(displayCell(sheet, "I" + excelRow));
+
+    const validMetricCount = [pa, pr, loss, hours].filter(v => v !== null).length;
+
+    if (validMetricCount === 0) continue;
+
+    data.push({
+      date,
+      key: dateKey(date),
+      pa,
+      pr,
+      loss,
+      hours,
+      validMetricCount,
+      sourceRow: excelRow
+    });
+  }
+
+  // Consolidate duplicates by keeping the row with the greatest number
+  // of valid metrics, as specified.
+  const byDate = new Map();
+
+  for (const record of data) {
+    const existing = byDate.get(record.key);
+    if (!existing || record.validMetricCount > existing.validMetricCount) {
+      byDate.set(record.key, record);
+    }
+  }
+
+  return [...byDate.values()].sort((a,b) => a.date - b.date);
+}
+
+/* -------------------- PA worksheet -------------------- */
+
+function readPAAvailabilityEvents() {
+  const sheet = state.sheets["PA"];
+  if (!sheet) return [];
+
+  const rows = sheetMatrix(sheet);
+  const events = [];
+
+  for (let r = 0; r < rows.length; r++) {
+    const row = r + 1;
+
+    const issue = displayCell(sheet, "W" + row);
+    const startRaw = displayCell(sheet, "Z" + row);
+    const endRaw = displayCell(sheet, "AC" + row);
+
+    if (isBadValue(issue)) continue;
+
+    const start = parseTimeMinutes(startRaw);
+    const endRawMinutes = parseTimeMinutes(endRaw);
+
+    if (start === null || endRawMinutes === null) continue;
+
+    let end = endRawMinutes;
+    if (end < start) end += 1440;
+
+    events.push({
+      issue: String(issue).trim(),
+      start,
+      end,
+      duration: end - start,
+      sourceRow: row
+    });
+  }
+
+  return events;
+}
+
+function readPABreakdown() {
+  const sheet = state.sheets["PA"];
+  if (!sheet) return [];
+
+  const rows = sheetMatrix(sheet);
+  const map = new Map();
+
+  for (let r = 0; r < rows.length; r++) {
+    const row = r + 1;
+    const date = parseDate(displayCell(sheet, "B" + row));
+    const breakdown = numericValue(displayCell(sheet, "AG" + row));
+
+    if (!date || breakdown === null) continue;
+
+    const key = dateKey(date);
+    if (!map.has(key)) map.set(key, { date, value: 0 });
+
+    map.get(key).value += breakdown;
+  }
+
+  return [...map.values()].sort((a,b) => a.date - b.date);
+}
+
+function readPASystemLoss() {
+  const sheet = state.sheets["PA"];
+  if (!sheet) return [];
+
+  const rows = sheetMatrix(sheet);
+  const map = new Map();
+
+  for (let r = 0; r < rows.length; r++) {
+    const row = r + 1;
+    const date = parseDate(displayCell(sheet, "B" + row));
+    const loss = numericValue(displayCell(sheet, "AL" + row));
+
+    if (!date || loss === null) continue;
+
+    const key = dateKey(date);
+    if (!map.has(key)) map.set(key, { date, value: 0 });
+
+    map.get(key).value += loss;
+  }
+
+  return [...map.values()].sort((a,b) => a.date - b.date);
+}
+
+/* -------------------- Annual_KPI -------------------- */
+
+function readAnnualKPI() {
+  const sheet = state.sheets["Annual_KPI"];
+  if (!sheet) return null;
+
+  const months = MONTHS.map((month, index) => {
+    const row = 10 + index;
+
+    return {
+      month,
+      shortMonth: SHORT_MONTHS[index],
+      targetPR: percentageValue(displayCell(sheet, "H" + row)),
+      measuredPR: percentageValue(displayCell(sheet, "I" + row)),
+      budgeted: numericValue(displayCell(sheet, "E" + row)),
+      measuredEnergy: numericValue(displayCell(sheet, "F" + row))
+    };
+  });
+
+  return months;
+}
+
+/* -------------------- Curtailment -------------------- */
+
+function readCurtailment() {
+  const sheet = state.sheets["Curtailment records"];
+  if (!sheet) return { intervals: [], daily: [] };
+
+  const rows = sheetMatrix(sheet);
+  const intervals = [];
+  const dailyMap = new Map();
+
+  for (let r = 0; r < rows.length; r++) {
+    const row = r + 1;
+
+    const date = parseDate(displayCell(sheet, "C" + row));
+    const start = parseTimeMinutes(displayCell(sheet, "H" + row));
+    const endRaw = parseTimeMinutes(displayCell(sheet, "I" + row));
+    const loss = numericValue(displayCell(sheet, "R" + row));
+
+    if (!date || start === null || endRaw === null) continue;
+
+    let end = endRaw;
+    if (end < start) end += 1440;
+
+    const key = dateKey(date);
+    const safeLoss = loss ?? 0;
+
+    if (!dailyMap.has(key)) {
+      dailyMap.set(key, {
+        date,
+        loss: 0,
+        intervals: 0
+      });
+    }
+
+    dailyMap.get(key).loss += safeLoss;
+    dailyMap.get(key).intervals += 1;
+
+    intervals.push({
+      date,
+      key,
+      start,
+      end,
+      duration: end - start,
+      loss,
+      sourceRow: row
+    });
+  }
+
+  return {
+    intervals,
+    daily: [...dailyMap.values()].sort((a,b) => a.date - b.date)
+  };
+}
+
+/* -------------------- Chart rendering -------------------- */
+
+function renderLineChart({
+  key, wrapperId, labels, values, label, min, max, step,
+  yTitle, percent = false, pixelsPerPoint = 76
+}) {
+  if (!values.length) {
+    showNoData(wrapperId);
+    return;
+  }
+
+  const width = chartWidth(values.length, pixelsPerPoint);
+  const wrapper = document.getElementById(wrapperId);
+  wrapper.style.width = width + "px";
+  wrapper.innerHTML = "";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = wrapper.clientHeight || 315;
+  wrapper.appendChild(canvas);
+
+  state.charts[key] = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data: values,
+        borderWidth: 2,
+        pointRadius: 2.5,
+        pointHoverRadius: 4,
+        tension: 0.22,
+        fill: false
+      }]
+    },
+    options: {
+      ...baseOptions(),
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: false,
+            maxRotation: 45,
+            minRotation: 45,
+            font: { size: 9 },
+            callback: function(value, index) {
+              return index % 2 === 0 ? this.getLabelForValue(value) : "";
+            }
+          },
+          grid: { display: false }
+        },
+        y: {
+          min,
+          max,
+          ticks: {
+            stepSize: step,
+            font: { size: 9 },
+            callback: value => percent ? value + "%" : value
+          },
+          title: {
+            display: true,
+            text: yTitle,
+            font: { size: 10, weight: "700" }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderBarChart({
+  key, wrapperId, labels, values, label, min, max, step,
+  indexAxis = "x", xTitle = "", yTitle = "", percent = false,
+  pixelsPerPoint = 76, secondValues = null, secondLabel = null
+}) {
+  if (!values.length) {
+    showNoData(wrapperId);
+    return;
+  }
+
+  const width = indexAxis === "y"
+    ? Math.max(780, document.getElementById(wrapperId).parentElement?.clientWidth || 780)
+    : chartWidth(values.length, pixelsPerPoint);
+
+  const wrapper = document.getElementById(wrapperId);
+  wrapper.style.width = width + "px";
+  wrapper.innerHTML = "";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = wrapper.clientHeight || 315;
+  wrapper.appendChild(canvas);
+
+  const datasets = [{
+    label,
+    data: values,
+    borderWidth: 1,
+    borderRadius: 3
+  }];
+
+  if (secondValues) {
+    datasets.push({
+      label: secondLabel,
+      data: secondValues,
+      borderWidth: 1,
+      borderRadius: 3
+    });
+  }
+
+  state.charts[key] = new Chart(canvas, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      ...baseOptions(),
+      indexAxis,
+      scales: {
+        x: {
+          min: indexAxis === "y" ? min : undefined,
+          max: indexAxis === "y" ? max : undefined,
+          ticks: {
+            stepSize: indexAxis === "y" ? step : undefined,
+            font: { size: 9 },
+            callback: value => (indexAxis === "y" && percent ? value + "%" : value)
+          },
+          title: {
+            display: !!xTitle,
+            text: xTitle,
+            font: { size: 10, weight: "700" }
+          },
+          grid: { display: indexAxis === "y" }
+        },
+        y: {
+          min: indexAxis === "x" ? min : undefined,
+          max: indexAxis === "x" ? max : undefined,
+          ticks: {
+            stepSize: indexAxis === "x" ? step : undefined,
+            font: { size: 9 },
+            callback: value => (indexAxis === "x" && percent ? value + "%" : value)
+          },
+          title: {
+            display: !!yTitle,
+            text: yTitle,
+            font: { size: 10, weight: "700" }
+          },
+          grid: { display: indexAxis === "x" }
+        }
+      }
+    }
+  });
+}
+
+/* Custom horizontal Gantt-like chart using Chart.js floating bars. */
+
+function renderFaultGantt() {
+  const events = readPAAvailabilityEvents();
+
+  if (!state.sheets["PA"]) {
+    showNoData("paGanttWrap", "PA worksheet missing");
+    return;
+  }
+
+  if (!events.length) {
+    showNoData("paGanttWrap");
+    return;
+  }
+
+  const grouped = [...new Set(events.map(e => e.issue))];
+
+  const width = Math.max(1150, grouped.length * 125);
+  const wrapper = document.getElementById("paGanttWrap");
+  wrapper.style.width = width + "px";
+  wrapper.innerHTML = "";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = 390;
+  wrapper.appendChild(canvas);
+
+  const datasets = grouped.map(issue => ({
+    label: issue,
+    data: events
+      .filter(e => e.issue === issue)
+      .map(e => ({
+        x: [e.start, e.end],
+        y: issue,
+        issue: e.issue,
+        start: e.start,
+        end: e.end,
+        duration: e.duration,
+        sourceRow: e.sourceRow
+      })),
+    parsing: false,
+    borderWidth: 7,
+    borderSkipped: false,
+    pointRadius: 0
+  }));
+
+  state.charts.paGantt = new Chart(canvas, {
+    type: "bar",
+    data: { labels: grouped, datasets },
+    options: {
+      ...baseOptions(),
+      indexAxis: "y",
+      scales: {
+        x: {
+          type: "linear",
+          min: 0,
+          max: 1440,
+          ticks: {
+            stepSize: 30,
+            font: { size: 9 },
+            callback: value => minutesToTime(value)
+          },
+          title: {
+            display: true,
+            text: "Time of day",
+            font: { size: 10, weight: "700" }
+          }
+        },
+        y: {
+          ticks: { font: { size: 9 } }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.raw?.issue || "",
+            label: item => {
+              const raw = item.raw;
+              return [
+                "Start: " + minutesToTime(raw.start % 1440),
+                "End: " + minutesToTime(raw.end % 1440),
+                "Duration: " + raw.duration.toFixed(0) + " min"
+              ];
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderBreakdown() {
+  const data = readPABreakdown();
+
+  if (!state.sheets["PA"]) {
+    showNoData("breakdownWrap", "PA worksheet missing");
+    return;
+  }
+
+  if (!data.length) {
+    showNoData("breakdownWrap");
+    return;
+  }
+
+  const labels = data.map(x => formatDate(x.date));
+  const values = data.map(x => x.value);
+
+  renderBarChart({
+    key: "breakdown",
+    wrapperId: "breakdownWrap",
+    labels,
+    values,
+    label: "Breakdown Time",
+    min: 0,
+    max: 13,
+    step: 1,
+    indexAxis: "y",
+    xTitle: "Breakdown Time (minutes)",
+    pixelsPerPoint: 28
+  });
+}
+
+function renderCurtailmentGantt() {
+  const result = readCurtailment();
+
+  if (!state.sheets["Curtailment records"]) {
+    showNoData("curtailmentGanttWrap", "Curtailment records worksheet missing");
+    return;
+  }
+
+  if (!result.intervals.length) {
+    showNoData("curtailmentGanttWrap");
+    return;
+  }
+
+  const dates = [...new Set(result.intervals.map(e => e.key))];
+  const dateMap = new Map(result.intervals.map(e => [e.key, e.date]));
+
+  const wrapper = document.getElementById("curtailmentGanttWrap");
+  const width = Math.max(1000, wrapper.parentElement?.clientWidth || 1000);
+  wrapper.style.width = width + "px";
+  wrapper.innerHTML = "";
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = Math.max(390, dates.length * 25);
+  wrapper.style.height = canvas.height + "px";
+  canvas.height = canvas.height;
+  wrapper.appendChild(canvas);
+
+  const data = result.intervals.map(e => ({
+    x: [e.start, e.end],
+    y: e.key,
+    date: e.date,
+    start: e.start,
+    end: e.end,
+    duration: e.duration,
+    loss: e.loss
+  }));
+
+  state.charts.curtailmentGantt = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: dates.map(k => formatDate(dateMap.get(k))),
+      datasets: [{
+        label: "Curtailment interval",
+        data,
+        parsing: false,
+        borderWidth: 8,
+        borderSkipped: false,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      ...baseOptions(),
+      indexAxis: "y",
+      scales: {
+        x: {
+          type: "linear",
+          min: 360,
+          max: 1080,
+          ticks: {
+            stepSize: 15,
+            font: { size: 9 },
+            callback: value => minutesToTime(value)
+          },
+          title: {
+            display: true,
+            text: "Time",
+            font: { size: 10, weight: "700" }
+          }
+        },
+        y: {
+          type: "category",
+          ticks: { font: { size: 9 } }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.raw?.date ? formatDate(items[0].raw.date) : "",
+            label: item => {
+              const raw = item.raw;
+              const lossText = raw.loss === null || raw.loss === undefined
+                ? "Not available"
+                : raw.loss.toFixed(2) + " MWh";
+
+              return [
+                "Start: " + minutesToTime(raw.start % 1440),
+                "End: " + minutesToTime(raw.end % 1440),
+                "Duration: " + raw.duration.toFixed(0) + " min",
+                "Loss: " + lossText
+              ];
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+/* -------------------- Render functions -------------------- */
+
+function renderDashboard() {
+  const data = readDailyKPI();
+
+  if (!data.length) {
+    ["dashPA","dashPR","dashLoss","dashHours"].forEach(id => {
+      document.getElementById(id).textContent = "—";
+    });
+    ["dashPRChartWrap","dashLossChartWrap"].forEach(id => showNoData(id));
+    document.getElementById("dashRange").textContent = "No Daily_KPI data";
+    return;
+  }
+
+  const latest = data[data.length - 1];
+
+  document.getElementById("dashPA").textContent =
+    latest.pa === null ? "—" : latest.pa.toFixed(2) + "%";
+  document.getElementById("dashPR").textContent =
+    latest.pr === null ? "—" : latest.pr.toFixed(2) + "%";
+  document.getElementById("dashLoss").textContent =
+    latest.loss === null ? "—" : latest.loss.toFixed(2) + "%";
+  document.getElementById("dashHours").textContent =
+    latest.hours === null ? "—" : latest.hours.toFixed(2);
+
+  const latestDate = formatDate(latest.date);
+  document.getElementById("dashPADate").textContent = latestDate;
+  document.getElementById("dashPRDate").textContent = latestDate;
+  document.getElementById("dashLossDate").textContent = latestDate;
+  document.getElementById("dashHoursDate").textContent = latestDate;
+
+  document.getElementById("dashRange").textContent =
+    formatDate(data[0].date) + " → " + formatDate(latest.date);
+
+  const labels = data.map(x => formatDate(x.date));
+
+  const prData = data.filter(x => x.pr !== null);
+  renderLineChart({
+    key: "dashPR",
+    wrapperId: "dashPRChartWrap",
+    labels: prData.map(x => formatDate(x.date)),
+    values: prData.map(x => x.pr),
+    label: "PR (%)",
+    min: 0,
+    max: 100,
+    step: 20,
+    yTitle: "PR (%)",
+    percent: true
+  });
+
+  const lossData = data.filter(x => x.loss !== null);
+  renderLineChart({
+    key: "dashLoss",
+    wrapperId: "dashLossChartWrap",
+    labels: lossData.map(x => formatDate(x.date)),
+    values: lossData.map(x => x.loss),
+    label: "System Loss (%)",
+    min: 0,
+    max: Math.max(5, Math.ceil(Math.max(...lossData.map(x => x.loss)) / 5) * 5),
+    step: 1,
+    yTitle: "System Loss (%)",
+    percent: true
+  });
+}
+
+function renderPA() {
+  const daily = readDailyKPI();
+
+  if (!state.sheets["Daily_KPI"] || !daily.length) {
+    showNoData("paAvailabilityWrap", "No Daily_KPI data");
+  } else {
+    const data = daily.filter(x => x.pa !== null);
+    renderLineChart({
+      key: "paAvailability",
+      wrapperId: "paAvailabilityWrap",
+      labels: data.map(x => formatDate(x.date)),
+      values: data.map(x => x.pa),
+      label: "Plant Availability (%)",
+      min: 80,
+      max: 100,
+      step: 5,
+      yTitle: "Plant Availability (%)",
+      percent: true
+    });
+  }
+
+  renderFaultGantt();
+  renderBreakdown();
+
+  const losses = readPASystemLoss();
+
+  if (!state.sheets["PA"]) {
+    showNoData("paLossWrap", "PA worksheet missing");
+  } else {
+    renderBarChart({
+      key: "paLoss",
+      wrapperId: "paLossWrap",
+      labels: losses.map(x => formatDate(x.date)),
+      values: losses.map(x => x.value),
+      label: "System Loss (MWh)",
+      min: 0,
+      max: losses.length ? Math.max(1, Math.ceil(Math.max(...losses.map(x => x.value)))) : 1,
+      step: 1,
+      yTitle: "System Loss (MWh)",
+      pixelsPerPoint: 58
+    });
+  }
+}
+
+function renderPerformance() {
+  const daily = readDailyKPI();
+
+  if (!state.sheets["Daily_KPI"] || !daily.length) {
+    ["performancePRWrap","operatingWrap","performanceLossWrap"].forEach(id =>
+      showNoData(id, "No Daily_KPI data")
+    );
+  } else {
+    const pr = daily.filter(x => x.pr !== null);
+    renderLineChart({
+      key: "performancePR",
+      wrapperId: "performancePRWrap",
+      labels: pr.map(x => formatDate(x.date)),
+      values: pr.map(x => x.pr),
+      label: "PR (%)",
+      min: 0,
+      max: 100,
+      step: 20,
+      yTitle: "PR (%)",
+      percent: true
+    });
+
+    const operating = daily.filter(x => x.hours !== null);
+    renderLineChart({
+      key: "operating",
+      wrapperId: "operatingWrap",
+      labels: operating.map(x => formatDate(x.date)),
+      values: operating.map(x => x.hours),
+      label: "Operating Hours",
+      min: 0,
+      max: Math.max(24, Math.ceil(Math.max(...operating.map(x => x.hours)))),
+      step: 2,
+      yTitle: "Operating Hours",
+      pixelsPerPoint: 76
+    });
+
+    const loss = daily.filter(x => x.loss !== null);
+    renderLineChart({
+      key: "performanceLoss",
+      wrapperId: "performanceLossWrap",
+      labels: loss.map(x => formatDate(x.date)),
+      values: loss.map(x => x.loss),
+      label: "System Loss (%)",
+      min: 0,
+      max: Math.max(5, Math.ceil(Math.max(...loss.map(x => x.loss)) / 5) * 5),
+      step: 1,
+      yTitle: "System Loss (%)",
+      percent: true
+    });
+  }
+
+  const annual = readAnnualKPI();
+
+  if (!annual) {
+    showNoData("monthlyPRWrap", "Annual_KPI worksheet missing");
+  } else {
+    const values = annual.map(x => x.measuredPR);
+    const valid = values.some(v => v !== null);
+
+    if (!valid) {
+      showNoData("monthlyPRWrap");
+    } else {
+      // Missing months are rendered as gaps rather than fabricated values.
+      renderBarChart({
+        key: "monthlyPR",
+        wrapperId: "monthlyPRWrap",
+        labels: annual.map(x => x.month),
+        values,
+        label: "Measured PR (%)",
+        min: 0,
+        max: 100,
+        step: 20,
+        indexAxis: "y",
+        xTitle: "Performance Ratio (%)",
+        percent: true
+      });
+    }
+  }
+}
+
+function renderCurtailment() {
+  const result = readCurtailment();
+
+  if (!state.sheets["Curtailment records"]) {
+    document.getElementById("curtailmentTableBody").innerHTML =
+      '<tr><td colspan="3">Curtailment records worksheet missing</td></tr>';
+    showNoData("curtailmentTrendWrap", "Curtailment records worksheet missing");
+    showNoData("curtailmentGanttWrap", "Curtailment records worksheet missing");
+    return;
+  }
+
+  const tbody = document.getElementById("curtailmentTableBody");
+
+  if (!result.daily.length) {
+    tbody.innerHTML = '<tr><td colspan="3">No data found</td></tr>';
+  } else {
+    tbody.innerHTML = result.daily.map(row => `
+      <tr>
+        <td>${escapeHtml(formatDate(row.date))}</td>
+        <td>${row.loss.toFixed(2)}</td>
+        <td>${row.intervals}</td>
+      </tr>
+    `).join("");
+  }
+
+  if (!result.daily.length) {
+    showNoData("curtailmentTrendWrap");
+  } else {
+    renderLineChart({
+      key: "curtailmentTrend",
+      wrapperId: "curtailmentTrendWrap",
+      labels: result.daily.map(x => formatDate(x.date)),
+      values: result.daily.map(x => x.loss),
+      label: "Curtailment Loss (MWh)",
+      min: 0,
+      max: Math.max(1, Math.ceil(Math.max(...result.daily.map(x => x.loss)))),
+      step: 1,
+      yTitle: "Curtailment Loss (MWh)",
+      pixelsPerPoint: 70
+    });
+  }
+
+  renderCurtailmentGantt();
+}
+
+function renderEnergy() {
+  const annual = readAnnualKPI();
+
+  if (!annual) {
+    document.getElementById("totalBudget").textContent = "—";
+    document.getElementById("totalMeasured").textContent = "—";
+    document.getElementById("energyVariance").textContent = "—";
+    showNoData("energyWrap", "Annual_KPI worksheet missing");
+    return;
+  }
+
+  const budgeted = annual.map(x => x.budgeted);
+  const measured = annual.map(x => x.measuredEnergy);
+
+  const totalBudget = budgeted.reduce((sum, value) => sum + (value ?? 0), 0);
+  const totalMeasured = measured.reduce((sum, value) => sum + (value ?? 0), 0);
+  const variance = totalMeasured - totalBudget;
+
+  document.getElementById("totalBudget").textContent =
+    totalBudget.toLocaleString("en-IN", { maximumFractionDigits: 2 }) + " MWh";
+  document.getElementById("totalMeasured").textContent =
+    totalMeasured.toLocaleString("en-IN", { maximumFractionDigits: 2 }) + " MWh";
+  document.getElementById("energyVariance").textContent =
+    variance.toLocaleString("en-IN", { maximumFractionDigits: 2 }) + " MWh";
+
+  const valid = budgeted.some(v => v !== null) || measured.some(v => v !== null);
+
+  if (!valid) {
+    showNoData("energyWrap");
+    return;
+  }
+
+  const all = [...budgeted, ...measured].filter(v => v !== null);
+  const maxValue = Math.max(...all, 1);
+
+  renderBarChart({
+    key: "energy",
+    wrapperId: "energyWrap",
+    labels: annual.map(x => x.shortMonth),
+    values: budgeted,
+    label: "Budgeted Energy",
+    min: 0,
+    max: Math.ceil(maxValue * 1.15),
+    step: undefined,
+    indexAxis: "x",
+    yTitle: "Energy (MWh)",
+    secondValues: measured,
+    secondLabel: "Measured Energy",
+    pixelsPerPoint: 88
+  });
+}
+
+function renderAll() {
+  renderDashboard();
+  renderPA();
+  renderPerformance();
+  renderCurtailment();
+  renderEnergy();
+}
+
+/* -------------------- Utility -------------------- */
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+// Initial state before upload.
+renderSheetBadges();
+</script>
+</body>
+</html>
