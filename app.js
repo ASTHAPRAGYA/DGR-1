@@ -1300,190 +1300,281 @@
      I = END
      R = LOSS MWh
      ========================================================== */
+  /* ==========================================================
+     CURTAILMENT
+     C = DATE
+     H = START / FROM TIME
+     I = END / TO TIME
+     R = LOSS OF GENERATION MWh
+     ========================================================== */
 
   function readCurtailment() {
-  const sheet =
-    state.sheets["Curtailment records"];
 
-  if (!sheet) {
-    return {
-      daily: [],
-      intervals: []
-    };
-  }
+    const sheet =
+      state.sheets["Curtailment records"];
 
-  const lastRow =
-    getSheetRowCount(sheet);
+    if (!sheet) {
+      console.error(
+        "Curtailment records worksheet not found"
+      );
 
-  const dailyMap =
-    new Map();
+      return {
+        daily: [],
+        intervals: []
+      };
+    }
 
-  const intervals = [];
+    const lastRow =
+      getSheetRowCount(sheet);
 
-  for (
-    let row = 2;
-    row <= lastRow;
-    row++
-  ) {
+    const dailyMap =
+      new Map();
+
+    const intervals = [];
+
     /*
-      EXACT CURTAILMENT MAPPING
+      --------------------------------------------------------
+      READ EVERY CURTAILMENT RECORD
+      --------------------------------------------------------
 
-      C  = Date
-      H  = From Time
-      I  = To Time
-      R  = Loss of Generation MWh
+      C = Date
+      H = From Time
+      I = To Time
+      R = Loss of Generation MWh
     */
 
-    const date =
-      parseDate(
+    for (
+      let row = 2;
+      row <= lastRow;
+      row++
+    ) {
+
+      const rawDate =
         getDisplayedValue(
           sheet,
           "C",
           row
-        )
-      );
+        );
 
-    if (!date) {
-      continue;
-    }
-
-    const start =
-      parseTimeMinutes(
+      const rawStart =
         getDisplayedValue(
           sheet,
           "H",
           row
-        )
-      );
+        );
 
-    const originalEnd =
-      parseTimeMinutes(
+      const rawEnd =
         getDisplayedValue(
           sheet,
           "I",
           row
-        )
-      );
+        );
 
-    const loss =
-      toNumber(
+      const rawLoss =
         getDisplayedValue(
           sheet,
           "R",
           row
-        )
-      );
-
-    const key =
-      dateKey(date);
-
-    /*
-      ------------------------------------------------------
-      DAILY CURTAILMENT LOSS
-      ------------------------------------------------------
-
-      R = Loss of Generation MWh
-
-      Aggregate all R values belonging
-      to the same date in C.
-    */
-
-    if (loss !== null) {
-      if (!dailyMap.has(key)) {
-        dailyMap.set(
-          key,
-          {
-            date,
-            loss: 0,
-            intervalCount: 0
-          }
         );
-      }
-
-      const daily =
-        dailyMap.get(key);
-
-      daily.loss += loss;
-
-      daily.intervalCount += 1;
-    }
-
-    /*
-      ------------------------------------------------------
-      CURTAILMENT DURATION
-      ------------------------------------------------------
-
-      H = Start
-      I = End
-
-      Keep every interval separately.
-    */
-
-    if (
-      start !== null &&
-      originalEnd !== null
-    ) {
-      let end =
-        originalEnd;
 
       /*
-        Overnight interval:
-        e.g. 23:30 → 01:00
+        DATE
+        Curtailment records!C
       */
 
-      if (end < start) {
-        end += 1440;
+      const date =
+        parseDate(rawDate);
+
+      if (!date) {
+        continue;
       }
 
-      intervals.push({
-        date,
-        key,
+      /*
+        START TIME
+        Curtailment records!H
+      */
 
-        start,
-        end,
+      const start =
+        parseTimeMinutes(
+          rawStart
+        );
 
-        duration:
-          end - start,
+      /*
+        END TIME
+        Curtailment records!I
+      */
 
-        loss:
-          loss !== null
-            ? loss
-            : null,
+      const originalEnd =
+        parseTimeMinutes(
+          rawEnd
+        );
 
-        sourceRow:
-          row
-      });
-    }
-  }
+      /*
+        LOSS OF GENERATION
+        Curtailment records!R
 
-  const daily =
-    Array.from(
-      dailyMap.values()
-    ).sort(
-      (a, b) =>
-        a.date - b.date
-    );
+        This is MWh.
+        Do NOT convert to percentage.
+      */
 
-  intervals.sort(
-    (a, b) => {
-      const dateDifference =
-        a.date - b.date;
+      const loss =
+        toNumber(rawLoss);
+
+      const key =
+        dateKey(date);
+
+      /*
+        ------------------------------------------------------
+        DAILY CURTAILMENT LOSS
+        ------------------------------------------------------
+
+        All Loss of Generation MWh
+        values from column R belonging
+        to the same date in column C
+        are summed.
+      */
+
+      if (loss !== null) {
+
+        if (
+          !dailyMap.has(key)
+        ) {
+          dailyMap.set(
+            key,
+            {
+              date: date,
+              loss: 0,
+              intervalCount: 0
+            }
+          );
+        }
+
+        const daily =
+          dailyMap.get(key);
+
+        daily.loss += loss;
+
+        daily.intervalCount += 1;
+      }
+
+      /*
+        ------------------------------------------------------
+        CURTAILMENT INTERVAL
+        ------------------------------------------------------
+
+        H = From Time
+        I = To Time
+
+        Every Excel row remains a
+        separate interval.
+
+        Same-date intervals are NOT merged.
+      */
 
       if (
-        dateDifference !== 0
+        start !== null &&
+        originalEnd !== null
       ) {
-        return dateDifference;
+
+        let end =
+          originalEnd;
+
+        /*
+          Overnight interval.
+
+          Example:
+          23:30 → 01:00
+
+          becomes:
+          23:30 → 25:00
+        */
+
+        if (
+          end < start
+        ) {
+          end += 1440;
+        }
+
+        intervals.push({
+          date: date,
+
+          key: key,
+
+          start: start,
+
+          end: end,
+
+          duration:
+            end - start,
+
+          loss:
+            loss,
+
+          sourceRow:
+            row
+        });
       }
-
-      return a.start - b.start;
     }
-  );
 
-  return {
-    daily,
-    intervals
-  };
-}
+    /*
+      --------------------------------------------------------
+      SORT DAILY DATA
+      --------------------------------------------------------
+    */
+
+    const daily =
+      Array.from(
+        dailyMap.values()
+      ).sort(
+        (a, b) =>
+          a.date - b.date
+      );
+
+    /*
+      --------------------------------------------------------
+      SORT INTERVAL DATA
+      --------------------------------------------------------
+    */
+
+    intervals.sort(
+      (a, b) => {
+
+        const dateDifference =
+          a.date - b.date;
+
+        if (
+          dateDifference !== 0
+        ) {
+          return dateDifference;
+        }
+
+        return (
+          a.start -
+          b.start
+        );
+      }
+    );
+
+    /*
+      DEBUG OUTPUT
+      */
+
+    console.log(
+      "CURTAILMENT DAILY DATA:",
+      daily
+    );
+
+    console.log(
+      "CURTAILMENT INTERVAL DATA:",
+      intervals
+    );
+
+    return {
+      daily: daily,
+
+      intervals: intervals
+    };
+  }
   /* ==========================================================
      EXTRACT ALL DATA
      ========================================================== */
