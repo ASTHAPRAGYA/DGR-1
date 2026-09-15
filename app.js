@@ -1302,143 +1302,98 @@
      ========================================================== */
 
   function readCurtailment() {
-    const sheet =
-      state.sheets[
-        "Curtailment records"
-      ];
+    const ws = getSheet("Curtailment records");
 
-    if (!sheet) {
-      return {
-        intervals: [],
-        daily: []
-      };
+    if (!ws) {
+        return {
+            daily: [],
+            intervals: []
+        };
     }
 
-    const lastRow =
-      getSheetRowCount(sheet);
-
+    const dailyMap = new Map();
     const intervals = [];
 
-    const dailyMap =
-      new Map();
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
 
-    for (
-      let row = 1;
-      row <= lastRow;
-      row++
-    ) {
-      const date =
-        parseDate(
-          getDisplayedValue(
-            sheet,
-            "C",
-            row
-          )
-        );
+    for (let r = 1; r <= range.e.r; r++) {
+        // -------------------------------------------------
+        // EXACT CURTAILMENT MAPPING
+        // C = Date
+        // H = From Time
+        // I = To Time
+        // R = Loss of Generation MWh
+        // -------------------------------------------------
 
-      const start =
-        parseTimeMinutes(
-          getDisplayedValue(
-            sheet,
-            "H",
-            row
-          )
-        );
+        const dateCell = ws[XLSX.utils.encode_cell({ r, c: 2 })];  // C
+        const fromCell = ws[XLSX.utils.encode_cell({ r, c: 7 })];  // H
+        const toCell = ws[XLSX.utils.encode_cell({ r, c: 8 })];    // I
+        const lossCell = ws[XLSX.utils.encode_cell({ r, c: 17 })]; // R
 
-      const originalEnd =
-        parseTimeMinutes(
-          getDisplayedValue(
-            sheet,
-            "I",
-            row
-          )
-        );
+        const date = parseExcelDateCell(dateCell);
 
-      const loss =
-        toNumber(
-          getDisplayedValue(
-            sheet,
-            "R",
-            row
-          )
-        );
+        if (!date) continue;
 
-      if (
-        !date ||
-        start === null ||
-        originalEnd === null
-      ) {
-        continue;
-      }
+        const fromMinutes = parseExcelTimeCell(fromCell);
+        const toMinutes = parseExcelTimeCell(toCell);
+        const loss = toNumber(lossCell);
 
-      let end =
-        originalEnd;
+        // A row is useful for the daily loss analysis
+        // even if timing information is unavailable.
+        if (loss !== null) {
+            const dateKey = formatDateKey(date);
 
-      /*
-        Overnight interval.
-      */
+            if (!dailyMap.has(dateKey)) {
+                dailyMap.set(dateKey, {
+                    date: date,
+                    loss: 0,
+                    intervals: 0
+                });
+            }
 
-      if (end < start) {
-        end += 1440;
-      }
+            dailyMap.get(dateKey).loss += loss;
+            dailyMap.get(dateKey).intervals += 1;
+        }
 
-      const key =
-        dateKey(date);
+        // For the duration Gantt, both start and end
+        // timings are required.
+        if (
+            fromMinutes !== null &&
+            toMinutes !== null
+        ) {
+            let endMinutes = toMinutes;
 
-      if (!dailyMap.has(key)) {
-        dailyMap.set(
-          key,
-          {
-            date,
-            loss: 0,
-            intervalCount: 0
-          }
-        );
-      }
+            // Overnight interval
+            if (endMinutes < fromMinutes) {
+                endMinutes += 1440;
+            }
 
-      /*
-        R is MWh.
-        No percentage conversion.
-      */
-
-      if (loss !== null) {
-        dailyMap.get(key).loss +=
-          loss;
-      }
-
-      dailyMap.get(key)
-        .intervalCount += 1;
-
-      /*
-        Each interval remains
-        independent for the Gantt.
-      */
-
-      intervals.push({
-        date,
-        key,
-        start,
-        end,
-        duration:
-          end - start,
-        loss,
-        sourceRow: row
-      });
+            intervals.push({
+                date: date,
+                dateKey: formatDateKey(date),
+                start: fromMinutes,
+                end: endMinutes,
+                loss: loss !== null ? loss : 0
+            });
+        }
     }
 
+    const daily = Array.from(dailyMap.values())
+        .sort((a, b) => a.date - b.date);
+
+    intervals.sort((a, b) => {
+        if (a.date - b.date !== 0) {
+            return a.date - b.date;
+        }
+
+        return a.start - b.start;
+    });
+
     return {
-      intervals,
-
-      daily:
-        [
-          ...dailyMap.values()
-        ].sort(
-          (a, b) =>
-            a.date - b.date
-        )
+        daily,
+        intervals
     };
-  }
-
+}
   /* ==========================================================
      EXTRACT ALL DATA
      ========================================================== */
@@ -2839,15 +2794,8 @@
           "System Loss (%)",
 
         yMin: 0,
-
-        yMax: Math.max(
-          5,
-          Math.ceil(
-            maxLoss / 5
-          ) * 5
-        ),
-
-        yStep: 1,
+yMax: 3,
+yStep: 0.5,
 
         yTitle:
           "System Loss (%)",
