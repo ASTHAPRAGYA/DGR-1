@@ -2156,16 +2156,11 @@
       datasetLabel:
         "System Loss (%)",
 
-      yMin: 0,
+     yMin: 0,
 
-      yMax: Math.max(
-        5,
-        Math.ceil(
-          maximumLoss / 5
-        ) * 5
-      ),
+yMax: 3,
 
-      yStep: 1,
+yStep: 0.5,
 
       yTitle:
         "System Loss (%)",
