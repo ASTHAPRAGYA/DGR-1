@@ -3652,6 +3652,10 @@
      CURTAILMENT
      ========================================================== */
 
+    /* ==========================================================
+     CURTAILMENT
+     ========================================================== */
+
   function renderCurtailment() {
 
     renderCurtailmentKPI();
@@ -3659,7 +3663,740 @@
     renderCurtailmentTable();
 
     renderCurtailmentTrend();
+
+    renderCurtailmentGantt();
   }
 
 
-  /* =================================================
+  /* ==========================================================
+     CURTAILMENT KPI
+     ========================================================== */
+
+  function renderCurtailmentKPI() {
+
+    const data =
+      state.data.curtailmentDaily;
+
+    if (
+      !state.sheets[
+        "Curtailment records"
+      ]
+    ) {
+      return;
+    }
+
+    if (
+      !data.length
+    ) {
+      setText(
+        "curtailmentTotal",
+        "—"
+      );
+
+      setText(
+        "curtailmentIntervals",
+        "—"
+      );
+
+      return;
+    }
+
+    const totalLoss =
+      data.reduce(
+        (sum, record) =>
+          sum +
+          (
+            Number.isFinite(
+              record.loss
+            )
+              ? record.loss
+              : 0
+          ),
+        0
+      );
+
+    const totalIntervals =
+      data.reduce(
+        (sum, record) =>
+          sum +
+          (
+            Number.isFinite(
+              record.intervalCount
+            )
+              ? record.intervalCount
+              : 0
+          ),
+        0
+      );
+
+    setText(
+      "curtailmentTotal",
+      `${totalLoss.toFixed(2)} MWh`
+    );
+
+    setText(
+      "curtailmentIntervals",
+      String(totalIntervals)
+    );
+  }
+
+
+  /* ==========================================================
+     CURTAILMENT TABLE
+     ========================================================== */
+
+  function renderCurtailmentTable() {
+
+    const data =
+      state.data.curtailmentIntervals;
+
+    const container =
+      document.getElementById(
+        "curtailmentTableWrap"
+      );
+
+    if (!container) {
+      return;
+    }
+
+    if (
+      !state.sheets[
+        "Curtailment records"
+      ]
+    ) {
+
+      container.innerHTML =
+        `<div class="no-data">
+          Curtailment records worksheet missing
+        </div>`;
+
+      return;
+    }
+
+    if (
+      !data.length
+    ) {
+
+      container.innerHTML =
+        `<div class="no-data">
+          No curtailment data found
+        </div>`;
+
+      return;
+    }
+
+    let html = `
+      <div class="table-scroll">
+        <table class="data-table">
+
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Duration</th>
+              <th>Loss of Generation (MWh)</th>
+            </tr>
+          </thead>
+
+          <tbody>
+    `;
+
+    data.forEach(
+      record => {
+
+        html += `
+          <tr>
+
+            <td>
+              ${escapeHtml(
+                formatDate(
+                  record.date
+                )
+              )}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                minutesToTime(
+                  record.start
+                )
+              )}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                minutesToTime(
+                  record.end
+                )
+              )}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                record.durationText ||
+                "—"
+              )}
+            </td>
+
+            <td>
+              ${
+                record.loss === null
+                  ? "—"
+                  : `${record.loss.toFixed(2)}`
+              }
+            </td>
+
+          </tr>
+        `;
+      }
+    );
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.innerHTML =
+      html;
+  }
+
+
+  /* ==========================================================
+     CURTAILMENT DAILY LOSS TREND
+     ========================================================== */
+
+  function renderCurtailmentTrend() {
+
+    const data =
+      state.data.curtailmentDaily;
+
+    if (
+      !state.sheets[
+        "Curtailment records"
+      ]
+    ) {
+
+      showNoData(
+        "curtailmentTrendWrap",
+        "Curtailment records worksheet missing"
+      );
+
+      return;
+    }
+
+    if (
+      !data.length
+    ) {
+
+      showNoData(
+        "curtailmentTrendWrap"
+      );
+
+      return;
+    }
+
+    createLineChart({
+
+      key:
+        "curtailmentTrend",
+
+      wrapperId:
+        "curtailmentTrendWrap",
+
+      labels:
+        data.map(
+          record =>
+            formatDate(
+              record.date
+            )
+        ),
+
+      values:
+        data.map(
+          record =>
+            record.loss
+        ),
+
+      datasetLabel:
+        "Loss of Generation (MWh)",
+
+      yMin:
+        0,
+
+      yMax:
+        Math.max(
+          1,
+          Math.ceil(
+            Math.max(
+              ...data.map(
+                record =>
+                  record.loss || 0
+              )
+            ) * 1.15
+          )
+        ),
+
+      yTitle:
+        "Loss of Generation (MWh)",
+
+      pixelsPerPoint:
+        76
+    });
+  }
+
+
+  /* ==========================================================
+     CURTAILMENT GANTT
+     
+     Uses:
+       C = Date
+       H = From
+       I = To
+
+     Displays daytime curtailment:
+       06:00 → 18:00
+
+     Each Excel record remains an individual interval.
+     ========================================================== */
+
+  function renderCurtailmentGantt() {
+
+    destroyChart(
+      "curtailmentGantt"
+    );
+
+    if (
+      !state.sheets[
+        "Curtailment records"
+      ]
+    ) {
+
+      showNoData(
+        "curtailmentGanttWrap",
+        "Curtailment records worksheet missing"
+      );
+
+      return;
+    }
+
+    const source =
+      state.data.curtailmentIntervals;
+
+    if (
+      !source.length
+    ) {
+
+      showNoData(
+        "curtailmentGanttWrap"
+      );
+
+      return;
+    }
+
+
+    /*
+      Daytime window:
+      06:00 = 360 minutes
+      18:00 = 1080 minutes
+    */
+
+    const DAY_START =
+      360;
+
+    const DAY_END =
+      1080;
+
+
+    /*
+      Keep only intervals that
+      overlap the daytime window.
+    */
+
+    const intervals =
+      source
+        .map(
+          record => {
+
+            const clippedStart =
+              Math.max(
+                record.start,
+                DAY_START
+              );
+
+            const clippedEnd =
+              Math.min(
+                record.end,
+                DAY_END
+              );
+
+            if (
+              clippedEnd <=
+              clippedStart
+            ) {
+              return null;
+            }
+
+            return {
+
+              ...record,
+
+              chartStart:
+                clippedStart,
+
+              chartEnd:
+                clippedEnd
+            };
+          }
+        )
+        .filter(
+          record =>
+            record !== null
+        );
+
+
+    if (
+      !intervals.length
+    ) {
+
+      showNoData(
+        "curtailmentGanttWrap",
+        "No daytime curtailment intervals found"
+      );
+
+      return;
+    }
+
+
+    /*
+      Use complete date keys so
+      different years do not collide.
+    */
+
+    const uniqueDates = [
+      ...new Set(
+        intervals.map(
+          record =>
+            record.key
+        )
+      )
+    ];
+
+
+    const dateLabels =
+      uniqueDates.map(
+        key => {
+
+          const record =
+            intervals.find(
+              item =>
+                item.key === key
+            );
+
+          return formatDate(
+            record.date
+          );
+        }
+      );
+
+
+    const wrapper =
+      document.getElementById(
+        "curtailmentGanttWrap"
+      );
+
+    if (!wrapper) {
+      return;
+    }
+
+
+    const width =
+      Math.max(
+        1150,
+        uniqueDates.length *
+          85
+      );
+
+    const height =
+      Math.max(
+        330,
+        Math.min(
+          700,
+          uniqueDates.length *
+            32 +
+            100
+        )
+      );
+
+    wrapper.style.width =
+      `${width}px`;
+
+    wrapper.style.height =
+      `${height}px`;
+
+    wrapper.innerHTML =
+      "";
+
+
+    const canvas =
+      document.createElement(
+        "canvas"
+      );
+
+    canvas.width =
+      width;
+
+    canvas.height =
+      height;
+
+    wrapper.appendChild(
+      canvas
+    );
+
+
+    const datasets =
+      intervals.map(
+        (record, index) => ({
+
+          label:
+            `Curtailment ${index + 1}`,
+
+          data: [{
+
+            x: [
+              record.chartStart,
+              record.chartEnd
+            ],
+
+            y:
+              record.key,
+
+            start:
+              record.start,
+
+            end:
+              record.end,
+
+            chartStart:
+              record.chartStart,
+
+            chartEnd:
+              record.chartEnd,
+
+            duration:
+              record.duration,
+
+            durationText:
+              record.durationText,
+
+            loss:
+              record.loss,
+
+            sourceRow:
+              record.sourceRow
+          }],
+
+          parsing:
+            false,
+
+          borderWidth:
+            10,
+
+          borderSkipped:
+            false,
+
+          pointRadius:
+            0
+        })
+      );
+
+
+    try {
+
+      state.charts[
+        "curtailmentGantt"
+      ] =
+        new Chart(
+          canvas,
+          {
+
+            type:
+              "bar",
+
+            data: {
+
+              labels:
+                uniqueDates,
+
+              datasets
+            },
+
+            options: {
+
+              ...commonChartOptions(),
+
+              indexAxis:
+                "y",
+
+              scales: {
+
+                x: {
+
+                  type:
+                    "linear",
+
+                  min:
+                    DAY_START,
+
+                  max:
+                    DAY_END,
+
+                  ticks: {
+
+                    stepSize:
+                      30,
+
+                    font: {
+                      size: 9
+                    },
+
+                    callback(
+                      value
+                    ) {
+
+                      return minutesToTime(
+                        value
+                      );
+                    }
+                  },
+
+                  title: {
+
+                    display:
+                      true,
+
+                    text:
+                      "Time of day",
+
+                    font: {
+
+                      size: 10,
+
+                      weight:
+                        "700"
+                    }
+                  }
+                },
+
+                y: {
+
+                  type:
+                    "category",
+
+                  labels:
+                    uniqueDates,
+
+                  ticks: {
+
+                    font: {
+                      size: 9
+                    },
+
+                    callback(
+                      value
+                    ) {
+
+                      return dateLabels[
+                        value
+                      ] || value;
+                    }
+                  }
+                }
+              },
+
+              plugins: {
+
+                legend: {
+                  display:
+                    false
+                },
+
+                tooltip: {
+
+                  callbacks: {
+
+                    title() {
+                      return "Curtailment Interval";
+                    },
+
+                    label(context) {
+
+                      const raw =
+                        context.raw;
+
+                      const lines = [
+
+                        `Date: ${formatDate(
+                          intervals[
+                            context.datasetIndex
+                          ].date
+                        )}`,
+
+                        `From: ${minutesToTime(
+                          raw.start
+                        )}`,
+
+                        `To: ${minutesToTime(
+                          raw.end
+                        )}`,
+
+                        `Duration: ${
+                          raw.durationText ||
+                          "—"
+                        }`
+
+                      ];
+
+                      if (
+                        raw.loss !==
+                        null &&
+                        raw.loss !==
+                        undefined
+                      ) {
+
+                        lines.push(
+                          `Loss: ${Number(
+                            raw.loss
+                          ).toFixed(
+                            2
+                          )} MWh`
+                        );
+                      }
+
+                      lines.push(
+                        `Excel Row: ${raw.sourceRow}`
+                      );
+
+                      return lines;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        );
+
+    } catch (error) {
+
+      console.error(
+        "Curtailment Gantt failed:",
+        error
+      );
+
+      showNoData(
+        "curtailmentGanttWrap",
+        "Unable to render this chart."
+      );
+    }
+  }
